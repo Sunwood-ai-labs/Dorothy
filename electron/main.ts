@@ -100,6 +100,7 @@ import {
   ensureDorothyClaudeMd,
   migrateFromClaudeManager,
 } from './utils';
+import { getPtyShellConfig, isBashLikeShell } from './utils/shell';
 
 // ============== App Settings Management ==============
 
@@ -397,7 +398,7 @@ app.whenReady().then(async () => {
       const pty = await import('node-pty');
 
       const id = uuidv4();
-      const shell = process.env.SHELL || '/bin/zsh';
+      const { shell, args } = getPtyShellConfig();
       let cwd = config.projectPath;
 
       if (!fs.existsSync(cwd)) {
@@ -407,7 +408,7 @@ app.whenReady().then(async () => {
       // Always include world-builder skill
       const allSkills = [...new Set([...config.skills, 'world-builder'])];
 
-      const ptyProcess = pty.spawn(shell, ['-l'], {
+      const ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
@@ -525,7 +526,7 @@ app.whenReady().then(async () => {
       const fullCommand = `cd '${workingPath}' && ${command}`;
 
       // For long commands, write to a temp script to avoid PTY line-wrapping mangling
-      if (fullCommand.length > 100) {
+      if (fullCommand.length > 100 && isBashLikeShell(getPtyShellConfig().shell)) {
         const tmpScript = path.join(os.tmpdir(), `claude-agent-${agentId}.sh`);
         fs.writeFileSync(tmpScript, `#!/bin/bash\n${fullCommand}\n`, { mode: 0o755 });
         writeProgrammaticInput(ptyProcess, `bash '${tmpScript}'`);

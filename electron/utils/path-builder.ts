@@ -10,17 +10,27 @@ import * as os from 'os';
  * @returns Deduplicated PATH string
  */
 export function buildFullPath(extraPaths: string[] = []): string {
-  const homeDir = process.env.HOME || os.homedir();
+  const homeDir = process.env.HOME || process.env.USERPROFILE || os.homedir();
   const existingPath = process.env.PATH || '';
 
   const additionalPaths = [
     ...extraPaths,
-    path.join(homeDir, '.nvm/versions/node/v20.11.1/bin'),
-    path.join(homeDir, '.nvm/versions/node/v22.0.0/bin'),
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    path.join(homeDir, '.local/bin'),
+    path.join(homeDir, '.nvm', 'versions', 'node', 'v20.11.1', 'bin'),
+    path.join(homeDir, '.nvm', 'versions', 'node', 'v22.0.0', 'bin'),
   ];
+
+  if (process.platform === 'win32') {
+    additionalPaths.push(
+      'C:\\Program Files\\Git\\bin',
+      'C:\\Program Files\\Git\\usr\\bin'
+    );
+  } else {
+    additionalPaths.push(
+      '/usr/local/bin',
+      '/opt/homebrew/bin',
+      path.join(homeDir, '.local', 'bin')
+    );
+  }
 
   // Find any nvm node version directories
   const nvmDir = path.join(homeDir, '.nvm/versions/node');
@@ -35,5 +45,10 @@ export function buildFullPath(extraPaths: string[] = []): string {
     }
   }
 
-  return [...new Set([...additionalPaths, ...existingPath.split(':')])].join(':');
+  return [
+    ...new Set([
+      ...additionalPaths.filter(Boolean),
+      ...existingPath.split(path.delimiter).filter(Boolean),
+    ]),
+  ].join(path.delimiter);
 }

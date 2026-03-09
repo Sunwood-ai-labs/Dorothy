@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { agents, saveAgents } from '../../core/agent-manager';
 import { ptyProcesses, writeProgrammaticInput } from '../../core/pty-manager';
 import { buildFullPath } from '../../utils/path-builder';
+import { getPtyShellConfig } from '../../utils/shell';
 import { AgentStatus, AgentCharacter } from '../../types';
 import { RouteApp, RouteContext } from './types';
 
@@ -203,10 +204,10 @@ export function registerAgentRoutes(app_: RouteApp, ctx: RouteContext): void {
     }
     command += ` '${finalPrompt.replace(/'/g, "'\\''")}'`;
 
-    const shell = '/bin/bash';
+    const { shell, args } = getPtyShellConfig();
     const fullPath = buildFullPath();
 
-    const ptyProcess = pty.spawn(shell, ['-l', '-c', command], {
+    const ptyProcess = pty.spawn(shell, [...args, '-c', command], {
       name: 'xterm-256color',
       cols: 120,
       rows: 40,

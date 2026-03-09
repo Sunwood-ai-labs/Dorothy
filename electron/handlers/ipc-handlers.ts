@@ -17,6 +17,7 @@ import { buildFullPath } from '../utils/path-builder';
 import { decodeProjectPath } from '../utils/decode-project-path';
 import { getProvider, getAllProviders } from '../providers';
 import { writeProgrammaticInput } from '../core/pty-manager';
+import { getPtyShellConfig } from '../utils/shell';
 
 // Dependencies interface for dependency injection
 export interface IpcHandlerDependencies {
@@ -93,9 +94,9 @@ function registerPtyHandlers(deps: IpcHandlerDependencies): void {
   // Create a new PTY terminal
   ipcMain.handle('pty:create', async (_event, { cwd, cols, rows }: { cwd?: string; cols?: number; rows?: number }) => {
     const id = uuidv4();
-    const shell = process.env.SHELL || '/bin/zsh';
+    const { shell, args } = getPtyShellConfig();
 
-    const ptyProcess = pty.spawn(shell, ['-l'], {
+    const ptyProcess = pty.spawn(shell, args, {
       name: 'xterm-256color',
       cols: cols || 80,
       rows: rows || 24,
@@ -182,7 +183,7 @@ function registerAgentHandlers(deps: IpcHandlerDependencies): void {
     obsidianVaultPaths?: string[];
   }) => {
     const id = uuidv4();
-    const shell = '/bin/bash';
+    const { shell, args } = getPtyShellConfig();
 
     // Validate project path exists
     let cwd = config.projectPath;
@@ -272,7 +273,7 @@ function registerAgentHandlers(deps: IpcHandlerDependencies): void {
 
     let ptyProcess: pty.IPty;
     try {
-      ptyProcess = pty.spawn(shell, ['-l'], {
+      ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
@@ -444,7 +445,8 @@ function registerAgentHandlers(deps: IpcHandlerDependencies): void {
       // Local provider uses Claude provider env vars + Tasmania env vars
       const localProviderEnvVars = getProvider('claude').getPtyEnvVars(agent.id, agent.projectPath, agent.skills);
 
-      const newPty = pty.spawn('/bin/bash', ['-l'], {
+      const { shell: localShell, args: localArgs } = getPtyShellConfig();
+      const newPty = pty.spawn(localShell, localArgs, {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
