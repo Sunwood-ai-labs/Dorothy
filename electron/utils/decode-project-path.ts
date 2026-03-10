@@ -14,8 +14,8 @@ import * as fs from 'fs';
  * and `docs.octav.fi` are correctly reconstructed.
  */
 export function decodeProjectPath(dirName: string): string {
-  const tokens = dirName.replace(/^-/, '').split('-');
-  let resolved = '/';
+  const { tokens, initialResolved } = getInitialPathState(dirName);
+  let resolved = initialResolved;
   let i = 0;
 
   while (i < tokens.length) {
@@ -61,6 +61,25 @@ export function decodeProjectPath(dirName: string): string {
   }
 
   return resolved;
+}
+
+function getInitialPathState(dirName: string): { tokens: string[]; initialResolved: string } {
+  if (process.platform === 'win32') {
+    const driveMatch = dirName.match(/^([A-Za-z])--?(.*)$/);
+    if (driveMatch) {
+      const [, driveLetter, remainder] = driveMatch;
+      const tokens = remainder.split('-').filter(Boolean);
+      return {
+        tokens,
+        initialResolved: `${driveLetter.toUpperCase()}:\\`,
+      };
+    }
+  }
+
+  return {
+    tokens: dirName.replace(/^-/, '').split('-'),
+    initialResolved: '/',
+  };
 }
 
 /**

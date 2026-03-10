@@ -7,6 +7,7 @@ import { formatSlackAgentStatus, isSuperAgent, getSuperAgent, getSuperAgentInstr
 import { agents, saveAgents, initAgentPty } from '../core/agent-manager';
 import { ptyProcesses, writeProgrammaticInput } from '../core/pty-manager';
 import { getMainWindow } from '../core/window-manager';
+import { buildCdCommand } from '../utils/shell';
 import { app } from 'electron';
 
 // Slack bot state
@@ -439,7 +440,7 @@ export async function handleSlackCommand(
     }
 
     try {
-      const workingPath = (agent.worktreePath || agent.projectPath).replace(/'/g, "'\\''");
+      const workingPath = agent.worktreePath || agent.projectPath;
 
       if (!agent.ptyId || !ptyProcesses.has(agent.ptyId)) {
         const ptyId = await initAgentPtyWithCallbacks(agent);
@@ -463,7 +464,7 @@ export async function handleSlackCommand(
       agent.status = 'running';
       agent.currentTask = task.slice(0, 100);
       agent.lastActivity = new Date().toISOString();
-      writeProgrammaticInput(ptyProcess, `cd '${workingPath}' && ${command}`);
+      writeProgrammaticInput(ptyProcess, buildCdCommand(workingPath, command));
       saveAgents();
 
       const emoji = isSuperAgent(agent) ? ':crown:' : SLACK_CHARACTER_FACES[agent.character || ''] || ':robot_face:';
@@ -596,7 +597,7 @@ export async function sendToSuperAgentFromSlack(
       superAgentSlackTask = true;
       superAgentSlackBuffer = [];
 
-      writeProgrammaticInput(ptyProcess, `cd '${workingPath}' && ${command}`);
+      writeProgrammaticInput(ptyProcess, buildCdCommand(workingPath, command));
       saveAgents();
 
       await say(':crown: Super Agent is processing your request...');

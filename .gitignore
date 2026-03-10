@@ -60,3 +60,5 @@ mcp-world/dist
 electron/dist
 
 .idea
+.tools/
+AGENTS.md

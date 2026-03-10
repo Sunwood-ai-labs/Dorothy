@@ -11,6 +11,46 @@ export function isBashLikeShell(shellPath: string): boolean {
   return /(?:^|[\\/])(ba|z)?sh(?:\.exe)?$/i.test(shellPath);
 }
 
+function toGitBashPath(targetPath: string): string {
+  const normalized = targetPath.replace(/\\/g, '/');
+  const driveMatch = normalized.match(/^([A-Za-z]):\/(.*)$/);
+  const slashDriveMatch = normalized.match(/^\/([A-Za-z])\/(.*)$/);
+
+  if (!driveMatch) {
+    if (!slashDriveMatch) {
+      return normalized;
+    }
+
+    const [, driveLetter, rest] = slashDriveMatch;
+    return `/${driveLetter.toLowerCase()}/${rest}`;
+  }
+
+  const [, driveLetter, rest] = driveMatch;
+  return `/${driveLetter.toLowerCase()}/${rest}`;
+}
+
+export function escapeShellSingleQuotes(value: string): string {
+  return value.replace(/'/g, "'\\''");
+}
+
+export function normalizePathForShell(targetPath: string, shellPath: string = getTerminalShell()): string {
+  if (process.platform === 'win32' && isBashLikeShell(shellPath)) {
+    return toGitBashPath(targetPath);
+  }
+
+  return targetPath;
+}
+
+export function buildCdCommand(targetPath: string, command: string, shellPath: string = getTerminalShell()): string {
+  const shellPathValue = escapeShellSingleQuotes(normalizePathForShell(targetPath, shellPath));
+  return `cd '${shellPathValue}' && ${command}`;
+}
+
+export function buildHookCommand(targetPath: string, shellPath: string = getTerminalShell()): string {
+  const shellPathValue = escapeShellSingleQuotes(normalizePathForShell(targetPath, shellPath));
+  return `'${shellPathValue}'`;
+}
+
 export function getTerminalShell(): string {
   if (process.platform === 'win32') {
     for (const candidate of WINDOWS_BASH_CANDIDATES) {

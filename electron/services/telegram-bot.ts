@@ -9,6 +9,7 @@ import { TG_CHARACTER_FACES, TELEGRAM_DOWNLOADS_DIR } from '../constants';
 import { isSuperAgent, formatAgentStatus, getSuperAgentInstructions, getTelegramInstructions } from '../utils';
 import { getProvider } from '../providers';
 import { writeProgrammaticInput } from '../core/pty-manager';
+import { buildCdCommand } from '../utils/shell';
 
 // ============== Telegram Bot State ==============
 let telegramBot: TelegramBot | null = null;
@@ -686,7 +687,7 @@ export function initTelegramBot() {
 
       try {
         // Start the agent using the existing IPC mechanism
-        const workingPath = (agent.worktreePath || agent.projectPath).replace(/'/g, "'\\''");
+        const workingPath = agent.worktreePath || agent.projectPath;
 
         // Initialize PTY if needed
         if (!agent.ptyId || !ptyProcesses.has(agent.ptyId)) {
@@ -715,7 +716,7 @@ export function initTelegramBot() {
         agent.status = 'running';
         agent.currentTask = task.slice(0, 100);
         agent.lastActivity = new Date().toISOString();
-        writeProgrammaticInput(ptyProcess, `cd '${workingPath}' && ${command}`);
+        writeProgrammaticInput(ptyProcess, buildCdCommand(workingPath, command));
         saveAgents();
 
         const emoji = isSuperAgent(agent) ? '👑' : (TG_CHARACTER_FACES[agent.character || ''] || '🤖');
@@ -1230,7 +1231,7 @@ export async function sendToSuperAgent(chatId: string, message: string, attached
       superAgentOutputBuffer = [];
 
       // Start new Claude session
-      writeProgrammaticInput(ptyProcess, `cd '${workingPath}' && ${command}`);
+      writeProgrammaticInput(ptyProcess, buildCdCommand(workingPath, command));
       saveAgents();
 
       telegramBot?.sendMessage(chatId, `👑 Super Agent is processing your request...`);

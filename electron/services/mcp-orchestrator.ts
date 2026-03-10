@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import type { AppSettings } from '../types';
 import { getAllProviders } from '../providers';
 
@@ -15,63 +15,127 @@ import { getAllProviders } from '../providers';
 
 // ============== Helper Functions ==============
 
+function getNpmExecutable(): string {
+  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+}
+
+function getLocalMcpProjectPath(projectName: string): string {
+  return path.join(app.getAppPath(), projectName);
+}
+
+function getLocalMcpBundlePath(projectName: string): string {
+  return path.join(getLocalMcpProjectPath(projectName), 'dist', 'bundle.js');
+}
+
+function getPackagedMcpBundlePath(projectName: string): string {
+  return path.join(process.resourcesPath, projectName, 'dist', 'bundle.js');
+}
+
+function ensureLocalMcpBundle(projectName: string): string {
+  const projectPath = getLocalMcpProjectPath(projectName);
+  const packageJsonPath = path.join(projectPath, 'package.json');
+  const bundlePath = getLocalMcpBundlePath(projectName);
+
+  if (fs.existsSync(bundlePath)) {
+    return bundlePath;
+  }
+
+  if (!fs.existsSync(packageJsonPath)) {
+    return bundlePath;
+  }
+
+  console.log(`[mcp] Building ${projectName} for development...`);
+  execFileSync(getNpmExecutable(), ['install'], {
+    cwd: projectPath,
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+  execFileSync(getNpmExecutable(), ['run', 'build'], {
+    cwd: projectPath,
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+
+  return bundlePath;
+}
+
+function resolveMcpBundlePath(projectName: string, options: { ensureBuilt?: boolean } = {}): string {
+  if (app.isPackaged) {
+    return getPackagedMcpBundlePath(projectName);
+  }
+
+  const localBundlePath = getLocalMcpBundlePath(projectName);
+  if (fs.existsSync(localBundlePath)) {
+    return localBundlePath;
+  }
+
+  if (options.ensureBuilt) {
+    try {
+      return ensureLocalMcpBundle(projectName);
+    } catch (err) {
+      console.error(`[mcp] Failed to build ${projectName}:`, err);
+    }
+  }
+
+  return localBundlePath;
+}
+
+function isConfiguredForPath(serverConfig: unknown, expectedPath: string): boolean {
+  if (!serverConfig || typeof serverConfig !== 'object') return false;
+
+  const maybeArgs = (serverConfig as { args?: unknown }).args;
+  if (!Array.isArray(maybeArgs)) return false;
+
+  return maybeArgs.some((arg) => arg === expectedPath);
+}
+
 /**
  * Get the path to the bundled MCP orchestrator
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpOrchestratorPath(): string {
-  // Always use the packaged app path - works for all users
-  return path.join(process.resourcesPath, 'mcp-orchestrator', 'dist', 'bundle.js');
+export function getMcpOrchestratorPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-orchestrator', options);
 }
 
 /**
  * Get the path to the bundled MCP telegram server
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpTelegramPath(): string {
-  // Always use the packaged app path - works for all users
-  return path.join(process.resourcesPath, 'mcp-telegram', 'dist', 'bundle.js');
+export function getMcpTelegramPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-telegram', options);
 }
 
 /**
  * Get the path to the bundled MCP kanban server
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpKanbanPath(): string {
-  // Always use the packaged app path - works for all users
-  return path.join(process.resourcesPath, 'mcp-kanban', 'dist', 'bundle.js');
+export function getMcpKanbanPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-kanban', options);
 }
 
 /**
  * Get the path to the bundled MCP vault server
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpVaultPath(): string {
-  return path.join(process.resourcesPath, 'mcp-vault', 'dist', 'bundle.js');
+export function getMcpVaultPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-vault', options);
 }
 
 /**
  * Get the path to the bundled MCP socialdata server
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpSocialDataPath(): string {
-  return path.join(process.resourcesPath, 'mcp-socialdata', 'dist', 'bundle.js');
+export function getMcpSocialDataPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-socialdata', options);
 }
 
 /**
  * Get the path to the bundled MCP X server (tweet posting)
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpXPath(): string {
-  return path.join(process.resourcesPath, 'mcp-x', 'dist', 'bundle.js');
+export function getMcpXPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-x', options);
 }
 
 /**
  * Get the path to the bundled MCP world server (generative zones)
- * Always uses the packaged app path - MCP servers are bundled in extraResources
  */
-export function getMcpWorldPath(): string {
-  return path.join(process.resourcesPath, 'mcp-world', 'dist', 'bundle.js');
+export function getMcpWorldPath(options?: { ensureBuilt?: boolean }): string {
+  return resolveMcpBundlePath('mcp-world', options);
 }
 
 /**
@@ -204,7 +268,10 @@ export function setupOrchestratorStatusHandler(): void {
       if (fs.existsSync(mcpConfigPath)) {
         try {
           const mcpConfig = JSON.parse(fs.readFileSync(mcpConfigPath, 'utf-8'));
-          mcpJsonConfigured = mcpConfig?.mcpServers?.['claude-mgr-orchestrator'] !== undefined;
+          mcpJsonConfigured = isConfiguredForPath(
+            mcpConfig?.mcpServers?.['claude-mgr-orchestrator'],
+            orchestratorPath
+          );
         } catch {
           // Ignore parse errors
         }
@@ -248,7 +315,7 @@ export function setupOrchestratorStatusHandler(): void {
 export function setupOrchestratorSetupHandler(): void {
   ipcMain.handle('orchestrator:setup', async () => {
     try {
-      const orchestratorPath = getMcpOrchestratorPath();
+      const orchestratorPath = getMcpOrchestratorPath({ ensureBuilt: true });
 
       // Check if orchestrator exists
       if (!fs.existsSync(orchestratorPath)) {
@@ -260,22 +327,30 @@ export function setupOrchestratorSetupHandler(): void {
 
       // First try to remove any existing config to avoid duplicates (from both user and project scope)
       try {
-        execSync('claude mcp remove -s user claude-mgr-orchestrator 2>&1', { encoding: 'utf-8', stdio: 'pipe' });
+        execFileSync('claude', ['mcp', 'remove', '-s', 'user', 'claude-mgr-orchestrator'], {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
       } catch {
         // Ignore errors if it doesn't exist
       }
       try {
-        execSync('claude mcp remove claude-mgr-orchestrator 2>&1', { encoding: 'utf-8', stdio: 'pipe' });
+        execFileSync('claude', ['mcp', 'remove', 'claude-mgr-orchestrator'], {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
       } catch {
         // Ignore errors if it doesn't exist in project scope
       }
 
       // Add the MCP server using claude mcp add with -s user for global scope
-      const addCommand = `claude mcp add -s user claude-mgr-orchestrator node "${orchestratorPath}"`;
-      console.log('Running:', addCommand);
+      console.log('Running: claude mcp add -s user claude-mgr-orchestrator node', orchestratorPath);
 
       try {
-        execSync(addCommand, { encoding: 'utf-8', stdio: 'pipe' });
+        execFileSync('claude', ['mcp', 'add', '-s', 'user', 'claude-mgr-orchestrator', 'node', orchestratorPath], {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
         console.log('MCP orchestrator configured globally via claude mcp add -s user');
         return { success: true, method: 'claude-mcp-add-global' };
       } catch (addErr) {
@@ -326,7 +401,10 @@ export function setupOrchestratorRemoveHandler(): void {
     try {
       // Remove from global user scope
       try {
-        execSync('claude mcp remove -s user claude-mgr-orchestrator 2>&1', { encoding: 'utf-8', stdio: 'pipe' });
+        execFileSync('claude', ['mcp', 'remove', '-s', 'user', 'claude-mgr-orchestrator'], {
+          encoding: 'utf-8',
+          stdio: 'pipe',
+        });
       } catch {
         // Ignore errors if it doesn't exist
       }

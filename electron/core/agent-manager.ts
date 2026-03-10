@@ -38,6 +38,20 @@ const pendingStatusChanges: Map<string, {
   timeoutId: NodeJS.Timeout;
 }> = new Map();
 
+function repairWindowsRootPath(targetPath?: string): string | undefined {
+  if (!targetPath || process.platform !== 'win32') {
+    return targetPath;
+  }
+
+  const match = targetPath.match(/^\\([A-Za-z])\\(.*)$/);
+  if (!match) {
+    return targetPath;
+  }
+
+  const [, driveLetter, rest] = match;
+  return `${driveLetter.toUpperCase()}:\\${rest}`;
+}
+
 export function handleStatusChangeNotification(
   agent: AgentStatus,
   newStatus: string,
@@ -199,6 +213,10 @@ export function loadAgents() {
     const agentsArray = JSON.parse(data) as AgentStatus[];
 
     for (const agent of agentsArray) {
+      agent.projectPath = repairWindowsRootPath(agent.projectPath) || agent.projectPath;
+      agent.worktreePath = repairWindowsRootPath(agent.worktreePath);
+      agent.secondaryProjectPath = repairWindowsRootPath(agent.secondaryProjectPath);
+
       const workingPath = agent.worktreePath || agent.projectPath;
       if (!fs.existsSync(workingPath)) {
         console.warn(`Agent ${agent.id} has missing path: ${workingPath} - marking as pathMissing`);

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import type { AppSettings } from '../types';
+import { buildHookCommand } from '../utils/shell';
 import type {
   CLIProvider,
   InteractiveCommandParams,
@@ -183,17 +184,19 @@ export class GeminiProvider implements CLIProvider {
     type HookEntry = { matcher?: string; hooks: Array<{ type: string; command: string; timeout?: number }> };
 
     for (const { type, file, matcher } of hookFiles) {
-      const commandPath = path.join(geminiHooksDir, file);
-      if (!fs.existsSync(commandPath)) continue;
+      const scriptPath = path.join(geminiHooksDir, file);
+      if (!fs.existsSync(scriptPath)) continue;
+
+      const commandPath = buildHookCommand(scriptPath);
 
       const existing: HookEntry[] = settings.hooks![type] || [];
       const entryIndex = existing.findIndex((h: HookEntry) =>
-        h.hooks?.some((hh: { command?: string }) => hh.command?.includes(`gemini/${file}`))
+        h.hooks?.some((hh: { command?: string }) => hh.command?.includes(file))
       );
 
       if (entryIndex >= 0) {
         const entry: HookEntry = existing[entryIndex];
-        const hookIndex = entry.hooks.findIndex((hh: { command?: string }) => hh.command?.includes(`gemini/${file}`));
+        const hookIndex = entry.hooks.findIndex((hh: { command?: string }) => hh.command?.includes(file));
         if (hookIndex >= 0 && entry.hooks[hookIndex].command !== commandPath) {
           entry.hooks[hookIndex].command = commandPath;
           updated = true;

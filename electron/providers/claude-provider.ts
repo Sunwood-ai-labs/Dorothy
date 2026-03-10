@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
 import type { AppSettings } from '../types';
+import { buildHookCommand } from '../utils/shell';
 import type {
   CLIProvider,
   InteractiveCommandParams,
@@ -197,8 +198,10 @@ export class ClaudeProvider implements CLIProvider {
     type HookEntry = { matcher?: string; hooks: Array<{ type: string; command: string; timeout?: number }> };
 
     for (const { type, file, matcher } of hookFiles) {
-      const commandPath = path.join(hooksDir, file);
-      if (!fs.existsSync(commandPath)) continue;
+      const scriptPath = path.join(hooksDir, file);
+      if (!fs.existsSync(scriptPath)) continue;
+
+      const commandPath = buildHookCommand(scriptPath);
 
       const existing: HookEntry[] = settings.hooks![type] || [];
       const entryIndex = existing.findIndex((h: HookEntry) =>

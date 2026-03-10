@@ -17,7 +17,7 @@ import { buildFullPath } from '../utils/path-builder';
 import { decodeProjectPath } from '../utils/decode-project-path';
 import { getProvider, getAllProviders } from '../providers';
 import { writeProgrammaticInput } from '../core/pty-manager';
-import { getPtyShellConfig } from '../utils/shell';
+import { buildCdCommand, getPtyShellConfig } from '../utils/shell';
 
 // Dependencies interface for dependency injection
 export interface IpcHandlerDependencies {
@@ -566,8 +566,8 @@ function registerAgentHandlers(deps: IpcHandlerDependencies): void {
     agent.lastActivity = new Date().toISOString();
 
     // First cd to the appropriate directory (worktree if exists, otherwise project), then run claude
-    const workingPath = (agent.worktreePath || agent.projectPath).replace(/'/g, "'\\''");
-    const fullCommand = `cd '${workingPath}' && ${command}`;
+    const workingPath = agent.worktreePath || agent.projectPath;
+    const fullCommand = buildCdCommand(workingPath, command);
 
     // Wait for the shell to initialize before writing the command.
     // A freshly-spawned PTY needs time for bash to start up (~200ms).

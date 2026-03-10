@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { agents, saveAgents } from '../../core/agent-manager';
 import { ptyProcesses, writeProgrammaticInput } from '../../core/pty-manager';
 import { buildFullPath } from '../../utils/path-builder';
-import { getPtyShellConfig } from '../../utils/shell';
+import { buildCdCommand, getPtyShellConfig } from '../../utils/shell';
 import { AgentStatus, AgentCharacter } from '../../types';
 import { RouteApp, RouteContext } from './types';
 
@@ -163,8 +163,9 @@ export function registerAgentRoutes(app_: RouteApp, ctx: RouteContext): void {
       return;
     }
 
-    const workingDir = (agent.worktreePath || agent.projectPath).replace(/'/g, "'\\''");
-    let command = `cd '${workingDir}' && claude`;
+    const { shell, args } = getPtyShellConfig();
+    const workingDir = agent.worktreePath || agent.projectPath;
+    let command = buildCdCommand(workingDir, 'claude', shell);
 
     const isAutomationAgent = agent.name?.toLowerCase().includes('automation:');
     const usePrintMode = printMode || isAutomationAgent;
@@ -204,7 +205,6 @@ export function registerAgentRoutes(app_: RouteApp, ctx: RouteContext): void {
     }
     command += ` '${finalPrompt.replace(/'/g, "'\\''")}'`;
 
-    const { shell, args } = getPtyShellConfig();
     const fullPath = buildFullPath();
 
     const ptyProcess = pty.spawn(shell, [...args, '-c', command], {

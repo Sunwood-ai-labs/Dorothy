@@ -100,7 +100,7 @@ import {
   ensureDorothyClaudeMd,
   migrateFromClaudeManager,
 } from './utils';
-import { getPtyShellConfig, isBashLikeShell } from './utils/shell';
+import { buildCdCommand, getPtyShellConfig, isBashLikeShell } from './utils/shell';
 
 // ============== App Settings Management ==============
 
@@ -522,8 +522,8 @@ app.whenReady().then(async () => {
       agent.currentTask = prompt.slice(0, 100);
       agent.lastActivity = new Date().toISOString();
 
-      const workingPath = (agent.worktreePath || agent.projectPath).replace(/'/g, "'\\''");
-      const fullCommand = `cd '${workingPath}' && ${command}`;
+      const workingPath = agent.worktreePath || agent.projectPath;
+      const fullCommand = buildCdCommand(workingPath, command);
 
       // For long commands, write to a temp script to avoid PTY line-wrapping mangling
       if (fullCommand.length > 100 && isBashLikeShell(getPtyShellConfig().shell)) {
